@@ -1,5 +1,5 @@
 # County-level poverty data
-#### Analyze census data income by county and state
+#### Task: Analyze census data income by county and state
 
 1. Determine the top ten zipcodes most afflicted by poverty by grouping them by rate (expressed as a %) below poverty level.
 
@@ -11,11 +11,46 @@
 
 1. Create several tables in PostgreSQL to store this information in a simple and relational manner.
 
-1. Conduct the analyses either directly in Python (and load the results to PostgreSQL), or load the raw data into PostgreSQL and write queries to analyze the data—determine and justfy the better choice.
+1. Conduct the analyses either directly in Python (and load the results to PostgreSQL), or load the raw data into PostgreSQL and write queries to analyze the data—determine and justify the better choice.
 
 #### Implementation
 
-As the project was short it was implemented as a single Python module which can be run directly from the terminal, as such `python import.py`.
+As the project was short it was implemented as a single Python module which can be run directly from the terminal, as such `python import.py`. Information on state ANSI codes, which are returned from the census data is saved into an external csv file and imported separately. Link is [here](https://www.census.gov/library/reference/code-lists/ansi/ansi-codes-for-states.html). Please see the code for implementation-specific documentation/comments.
+
+The project relies on the [census](https://github.com/datamade/census) library to access the census API.
+
+The database consists of three tables, `states`, `zip_raw_data`, and `zip_stats`. 
+
+As noted, `states` is available to be able to convert between ANSI state enumeration, state postal codes, and state names.
+
+`zip_raw_data` hold the various data fields pulled from the census:
+
+```sql
+CREATE TABLE zip_raw_data (
+    zipcode varchar(5) PRIMARY KEY,
+    population INT,
+    rent_as_pctg float,
+    median_income INT,
+    poverty_level float,
+    state_id INT REFERENCES states (id)
+)
+```
+
+`zip_stats` is provided as proof of concept and thus only has two example fields, one of which splits the zip codes into quintiles and one of which orders zips by descending level of poverty.
+
+```sql
+CREATE TABLE zip_stats
+    AS
+    SELECT
+        zipcode,
+        NTILE(5) OVER (ORDER BY poverty_level DESC) AS quintiles,
+        DENSE_RANK() OVER (
+            ORDER BY poverty_level DESC
+        ) poverty_level_rank
+    FROM zip_raw_data
+```
+
+
 
 #### Results
 
@@ -25,7 +60,7 @@ As the project was short it was implemented as a single Python module which can 
 SELECT
       zip_stats.zipcode, 
       poverty_level_rank, 
-      name 
+      state_name 
 FROM zip_stats 
      JOIN zip_raw_data ON zip_stats.zipcode = zip_raw_data.zipcode 
      JOIN states ON zip_raw_data.state_id = states.id

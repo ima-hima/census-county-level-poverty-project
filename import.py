@@ -4,7 +4,6 @@ from os import getenv
 import psycopg
 from census import Census
 from dotenv import load_dotenv
-from us import states
 
 load_dotenv(override=True)
 
@@ -24,81 +23,42 @@ c = Census(API_KEY, year=2019)  # 2020 returns nulls for the state.
 
 # Note that for data profile tables we must use Census.acs5db() and not Census.acs5().
 table = c.acs5dp.get(
-    ("DP05_0001PE", "DP04_0136PE", "DP03_0062E", "DP03_0119PE, DP03_0119PM"),
+    ("DP05_0001PE", "DP04_0136PE", "DP03_0062E", "DP03_0119PE", "DP03_0119PM"),
     {"for": "zip code tabulation area:*"},
 )
 
-# The following imports data to translate numeric state identifiers into
+# The following imports data to translate ANSI numeric state identifiers into
 # state names (or, if needed postal abbreviations). The data came from here:
 # https://www.census.gov/library/reference/code-lists/ansi/ansi-codes-for-states.html
 with open(
-    (
-        "/Users/eric/Documents/workspace_git/census-county-level-poverty-project/"
-        "state_codes.csv"
-    ),
+    ("state_codes.csv"),
     "r",
 ) as states_in:
     states = csv.DictReader(states_in, delimiter=",", quotechar='"')
     states_to_insert = [(s["value"], s["name"], s["abbreviation"]) for s in states]
 
-
-with open(
-    "/Users/eric/Documents/workspace_git/census-county-level-poverty-project/zips.csv",
-    "w",
-) as zips:
-    zip_writer = csv.writer(
-        zips, delimiter=",", quotechar='"', quoting=csv.QUOTE_MINIMAL
-    )
-    zip_writer.writerow(
-        [
-            "Total population",
-            "Gross rent as a percentage of household income",
-            "Median household income (dollars)",
-            "Percent below poverty line",
-            "STATE",
-            "zipcode",
-        ]
-    )
-    for row in table:
-        if (
-            row["DP05_0001PE"] != "0.0"
-            and row["DP03_0119PE"] >= 0
-            and row["DP03_0062E"] >= 0
-        ):
-            # Throwing out bad data, which comes back as negative numbers.
-            # Consider margin of error here? Some zips return 0% or 100%
-            # poverty levels. Including those for now.
-            zip_writer.writerow(
-                [
-                    row["DP05_0001PE"],
-                    row["DP04_0136PE"],
-                    row["DP03_0062E"],
-                    row["DP03_0119PE"],
-                    row["state"],
-                    row["zip code tabulation area"],
-                ]
-            )
-
-with open(
+# Convert to list of tuples, which is what psycopg needs in order to do ingestion.
+# Throwing out bad data, which comes back as negative numbers.
+# Consider margin of error here? Some zips return 0% or 100%
+# poverty levels. Including those for now.
+zips_to_insert = [
     (
-        "/Users/eric/Documents/workspace_git/census-county-level-poverty-project/"
-        "zips.csv"
-    ),
-    "r",
-) as zips_in:
-    zips = csv.DictReader(zips_in, delimiter=",", quotechar='"')
-    zips_to_insert = [
-        (
-            z["zipcode"],
-            int(float(z["Total population"])),
-            z["Gross rent as a percentage of household income"],
-            int(float(z["Median household income (dollars)"])),
-            z["Percent below poverty line"],
-            z["STATE"],
-        )
-        for z in zips
-    ]
-
+        row["zip code tabulation area"],
+        int(
+            float(row["DP05_0001PE"])
+        ),  # Some come back from census w/ extra 0s, e.g 600.0
+        row["DP04_0136PE"],
+        int(float(row["DP03_0062E"])),
+        row["DP03_0119PE"],
+        row["state"],
+    )
+    for row in table
+    if (
+        row["DP05_0001PE"] != "0.0"
+        and row["DP03_0119PE"] >= 0
+        and row["DP03_0062E"] >= 0
+    )
+]
 
 with psycopg.connect(
     f"dbname={PSQL_DATABASE_NAME} user=postgres password={PSQL_PW}"
