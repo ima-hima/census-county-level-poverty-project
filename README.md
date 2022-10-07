@@ -54,7 +54,7 @@ CREATE TABLE zip_stats
 
 #### Results
 
-1. The ten zipcodes with the highest levels of poverty are (n.b. several zip codes were listed as having either 100% or 0% poverty rates. I did not remove those zip codes.). The query and results are below.
+1. The query and results to find the ten zipcodes with the highest poverty are below. (n.b. Several zip codes were listed as having either 100% or 0% poverty rates. I did not remove those zip codes.)  
 
 ```sql
 SELECT
@@ -66,7 +66,6 @@ FROM zip_stats
      JOIN states ON zip_raw_data.state_id = states.id
 LIMIT 10;
 ```
-
 
 |zipcode | rank | state | 
 |--------|:----:|-------|
@@ -80,6 +79,42 @@ LIMIT 10;
 |41845   | 2    | Kentucky |
 |40997   | 3    | Kentucky |
 |62523   | 4    | Illinois |
+
+
+1. The query and results to find the ten states with the highest proportion of zipcodes with high poverty—which I designated as having poverty rates >= 30—are below. (n.b. As above, several zip codes were listed as having either 100% or 0% poverty rates. I did not remove those zip codes.)  
+
+```sql
+SELECT state_name, high_poverty_count / count_all AS "percent high"
+FROM
+    (SELECT 
+        state_id, 
+        COUNT(zipcode)::float AS count_all
+    FROM zip_raw_data
+    GROUP BY state_id) AS zrd
+    JOIN (SELECT 
+              COUNT(zipcode)::float AS high_poverty_count, 
+              state_id
+          FROM zip_raw_data 
+          WHERE poverty_level >= 25
+          GROUP BY state_id) AS high_poverty
+    ON high_poverty.state_id = zrd.state_id
+    JOIN states ON states.id = zrd.state_id
+ORDER BY "percent high" DESC
+LIMIT 10;
+```
+
+|     state_name      |    percent high    |
+|---------------------|--------------------|
+|Puerto Rico          |               0.912|
+|Alaska               | 0.29439252336448596|
+|Mississippi          | 0.23237597911227154|
+|New Mexico           |  0.2041522491349481|
+|Kentucky             | 0.18664643399089528|
+|Arizona              | 0.17819148936170212|
+|West Virginia        | 0.16404886561954624|
+|District of Columbia | 0.13636363636363635|
+|Louisiana            | 0.12578616352201258|
+|Alabama              |  0.1097972972972973|
 
 #### Choices and justifications
 
