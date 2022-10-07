@@ -118,3 +118,4 @@ with psycopg.connect(
             FROM zip_raw_data
             """
         )
+
