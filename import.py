@@ -1,9 +1,10 @@
-from census import Census
 import csv
-from us import states
-import psycopg
-from dotenv import load_dotenv
 from os import getenv
+
+import psycopg
+from census import Census
+from dotenv import load_dotenv
+from us import states
 
 load_dotenv(override=True)
 
@@ -116,7 +117,9 @@ with psycopg.connect(
             )
             """
         )
-        insert_sql = "INSERT INTO states (id, state_name, abbreviation)" "VALUES (%s, %s, %s)"
+        insert_sql = (
+            "INSERT INTO states (id, state_name, abbreviation)" "VALUES (%s, %s, %s)"
+        )
         cur.executemany(insert_sql, states_to_insert)
 
         # Now create table of raw data.
@@ -141,7 +144,6 @@ with psycopg.connect(
         cur.executemany(insert_sql, zips_to_insert)
 
         # Finally, create table with various stats.
-        # Currently, this breaks
         cur.execute("DROP TABLE IF EXISTS zip_stats")
         cur.execute(
             """
@@ -156,9 +158,3 @@ with psycopg.connect(
             FROM zip_raw_data
             """
         )
-
-
-
-# by state: proportion per state
-# by zip: percent < poverty, median household income, rent as percent of income
-#         total population
